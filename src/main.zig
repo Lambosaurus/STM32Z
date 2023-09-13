@@ -1,13 +1,16 @@
-const mcu = @import("STM32Z/MCU/STM32L0x3.zig");
+const mcu = @import("STM32Z/mcu.zig").mcu;
+const GPIO = @import("STM32Z/GPIO.zig").GPIO;
+
+const led_red = GPIO.new("PB3");
+const led_grn = GPIO.new("PB4");
+const led_blu = GPIO.new("PB5");
 
 pub fn main() void {
+    // Enable the GPIOB bank (Well work on that.)
     mcu.RCC.IOPENR.write(.{ .IOPBEN = 1 });
     asm volatile ("nop;");
 
-    var moder = mcu.GPIOB.MODER.read();
-    moder.MODE3 = 1;
-    mcu.GPIOB.MODER.write(moder);
-    mcu.GPIOB.ODR.write(.{});
+    led_grn.init_output(0);
 
     while (true) {}
 }

@@ -32,6 +32,13 @@ fn r32(comptime T: type) type {
             }
             self.write(old_value);
         }
+
+        pub inline fn modify_word(self: *volatile Self, clear: u32, set: u32) void {
+            var word = self.memory;
+            word &= ~clear;
+            word |= set;
+            self.memory = word;
+        }
     };
 }
 
