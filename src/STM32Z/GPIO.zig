@@ -187,27 +187,22 @@ fn get_port(port: u16) *mcu.GPIO_Peripheral {
 
 /// Helpers for extracting the pin number from a pin string: 'PB12' -> 12
 fn parse_pin_number(comptime pin_name: []const u8) u16 {
-    comptime var pin: u16 = undefined;
-
-    comptime {
+    return comptime get_pin: {
         if (pin_name.len < 3 or pin_name[0] != 'P') {
             @compileError("Example pin formatting: 'PA0'");
         }
 
-        pin = std.fmt.parseInt(u32, pin_name[2..], 10) catch unreachable;
+        const pin = std.fmt.parseInt(u32, pin_name[2..], 10) catch unreachable;
         if (pin > 15) {
             @compileError("Pin should be <= 15");
         }
-    }
-
-    return pin;
+        break :get_pin pin;
+    };
 }
 
 /// Helpers for extracting the pin number from a pin string: 'PB12' -> 1
 fn parse_pin_port(comptime pin_name: []const u8) u16 {
-    comptime var port: u16 = undefined;
-
-    comptime {
+    return comptime get_port: {
         if (pin_name.len < 3 or pin_name[0] != 'P') {
             @compileError("Example pin formatting: 'PA0'");
         }
@@ -215,10 +210,8 @@ fn parse_pin_port(comptime pin_name: []const u8) u16 {
         if (port_letter < 'A' or port_letter > 'F') {
             @compileError("GPIO Port expected to be in the range A to F.");
         }
-        port = port_letter - 'A';
-    }
-
-    return port;
+        break :get_port (port_letter - 'A');
+    };
 }
 
 test "pin parsing" {
