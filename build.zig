@@ -33,4 +33,25 @@ pub fn build(b: *Builder) void {
     // Copy the bin to the output directory
     const copy_bin = b.addInstallBinFile(bin.getOutput(), "output.bin");
     b.default_step.dependOn(&copy_bin.step);
+
+    const flash_bin = b.addSystemCommand(get_flash_command());
+    flash_bin.step.dependOn(&copy_bin.step);
+    const flash_step = b.step("flash", "flash the target");
+    flash_step.dependOn(&flash_bin.step);
+}
+
+pub fn get_flash_command() []const []const u8 {
+    return &.{
+        "./tools/openocd/bin/openocd.exe",
+        "-s",
+        "./tools/openocd/scripts/",
+        "-f",
+        "default.cfg",
+        "-c",
+        "source [find target/stm32l0.cfg]",
+        "-c",
+        "program \"./zig-out/bin/output.bin\" 0x08000000 reset",
+        "-c",
+        "shutdown",
+    };
 }
