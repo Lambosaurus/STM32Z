@@ -9,31 +9,30 @@ const RCC = mcu.RCC;
 pub const CORE = struct {
     clk: CLK,
 
-    pub fn new() CORE {
+    pub fn new(comptime clk: CLK) CORE {
         return .{
-            .clk = CLK.new(),
+            .clk = clk,
         };
     }
 
     pub fn init(comptime core: CORE) void {
         core.clk.init();
-        core.enable_gpio_clocks();
+        enable_gpio_clocks();
     }
-
-    fn enable_gpio_clocks() void {
-        // Enable all the GPIO clocks
-        RCC.IOPENR.write(.{
-            .IOPBEN = 1,
-            .IOPAEN = 1,
-            .IOPCEN = 1,
-            .IOPDEN = 1,
-            .IOPEEN = 1,
-            .IOPHEN = 1,
-        });
-        asm volatile ("nop;");
-    }
-
     //pub fn delay() void {
     //
     //}
 };
+
+fn enable_gpio_clocks() void {
+    // Enable all the GPIO clocks
+    RCC.IOPENR.write(.{
+        .IOPBEN = 1,
+        .IOPAEN = 1,
+        .IOPCEN = 1,
+        .IOPDEN = 1,
+        .IOPEEN = 1,
+        .IOPHEN = 1,
+    });
+    asm volatile ("nop;");
+}

@@ -3,116 +3,179 @@ const mcu = @import("mcu.zig").mcu;
 
 const RCC = mcu.RCC;
 
-const HSI_FREQ_HZ = 16_000_000;
+const HSI_FREQ = 16_000_000;
+const MSI_FREQ_MIN = 65_536;
+const MSI_FREQ_MAX = 4_194_304;
+
+const PLL_MUL_FACTORS = .{ 3, 4, 6, 8, 12, 16, 24, 32, 48 };
+//PLLDIV = 0 is invalid.
+const PLL_DIV_FACTORS = .{ 0, 2, 3, 4 };
+
+const ClockSource = enum(u2) {
+    // Medium speed internal oscillator.
+    msi = 0,
+    // High speed internal oscillator.
+    hsi = 1,
+    // High speed external oscillator.
+    hse = 2,
+    // Phased lock loop.
+    // Do not select the PLL as a clock source. It will be automatically done if needed.
+    pll = 3,
+};
 
 /// Configures the clock tree.
-/// No need to create this directly - this will be initialized by the CORE module.
 pub const CLK = struct {
-    core_hz: comptime_int,
-    hse_hz: comptime_int,
-
-    pub fn new(comptime core_hz: comptime_int) CLK {
-        return .{
-            .core_hz = core_hz,
-        };
-    }
+    sysclk_hz: comptime_int = 32_000_000,
+    clock_source: ClockSource = .hsi,
+    hse_hz: ?comptime_int = null,
 
     pub fn init(comptime clk: CLK) void {
-        if (clk.core_hz == HSI_FREQ_HZ) {
-            enable_hsi();
+        flash_set_latency(clk.sysclk_hz);
+
+        comptime var input_hz: comptime_int = undefined;
+
+        switch (clk.clock_source) {
+            .msi => {
+                msi_enable(1);
+                msi_set_speed(clk.sysclk_hz);
+                input_hz = clk.sysclk_hz;
+            },
+            .hsi => {
+                hsi_enable(1);
+                input_hz = HSI_FREQ;
+            },
+            .hse => {
+                hse_enable(1);
+                if (clk.hse_hz == null) {
+                    @compileError("Please specify the HSE frequency.");
+                }
+                input_hz = clk.hse_hz.?;
+            },
+            .pll => @compileError("Please select the root clock. The PLL will be enabled if needed."),
         }
+
+        if (input_hz == clk.sysclk_hz) {
+            // PLL not needed. Run directly from input source
+            sysclk_set_src(clk.clock_source);
+        } else {
+            // PLL is needed. Do the thing.
+            pll_configure(clk.clock_source, input_hz, clk.sysclk_hz);
+            sysclk_set_src(.pll);
+        }
+
+        configure_bus_clocks();
+
+        if (clk.clock_source != .msi) {
+            // The MSI is the default clock source. It is no longer needed.
+            msi_enable(0);
+        }
+    }
+
+    pub fn get_sysclk_hz(comptime clk: CLK) comptime_int {
+        return clk.sysclk_hz;
     }
 };
 
-fn enable_hsi() void {
-    RCC.CFGR.modify(.{ .HSI16ON = 1 });
-    while (RCC.CFGR.read().HSI16RDYF == 0) {}
+fn flash_set_latency(comptime sysclk_hz: comptime_int) void {
+    const state: u1 = if (sysclk_hz > 16_000_000) 1 else 0;
+    mcu.FLASH.ACR.modify(.{
+        .LATENCY = state,
+    });
 }
 
-//void CLK_InitSYSCLK(void)
-// {
-// 	__HAL_FLASH_SET_LATENCY(FLASH_LATENCY);
-// #ifdef CLK_WAKEUP_CLK
-// 	__HAL_RCC_WAKEUPSTOP_CLK_CONFIG(CLK_WAKEUP_CLK);
-// #endif
+/// Enable the High Speed Internal oscillator (HSI).
+fn hsi_enable(comptime enable: u1) void {
+    RCC.CR.modify(.{ .HSI16ON = enable });
+    if (enable == 1) {
+        // Do not wait for disable.
+        while (RCC.CR.read().HSI16RDYF == 0) {}
+    }
+}
 
-// 	/*
-// 	 * ENABLE OSCILLATORS
-// 	 * Enable any required oscillators
-// 	 */
+/// Enable the Medium Speed Internal oscillator (MSI).
+fn msi_enable(comptime enable: u1) void {
+    RCC.CR.modify(.{ .MSION = enable });
+    if (enable == 1) {
+        // Do not wait for disable.
+        while (RCC.CR.read().MSIRDY == 0) {}
+    }
+}
 
-// #ifdef CLK_USE_HSE
-// #ifdef CLK_HSE_BYPASS
-// 	__HAL_RCC_HSE_CONFIG(RCC_HSE_BYPASS_PWR);
-// #else
-// 	__HAL_RCC_HSE_CONFIG(RCC_HSE_ON);
-// #endif
-// 	while(__HAL_RCC_GET_FLAG(RCC_FLAG_HSERDY) == 0U);
-// #endif
-// #ifdef CLK_USE_HSI
-// 	__HAL_RCC_HSI_CALIBRATIONVALUE_ADJUST(RCC_HSICALIBRATION_DEFAULT);
-// 	__HAL_RCC_HSI_ENABLE();
-// 	while(__HAL_RCC_GET_FLAG(RCC_FLAG_HSIRDY) == 0U);
-// #endif
-// #ifdef CLK_USE_MSI
-// 	__HAL_RCC_MSI_ENABLE();
-// 	while(__HAL_RCC_GET_FLAG(RCC_FLAG_MSIRDY) == 0U);
-// 	__HAL_RCC_MSI_RANGE_CONFIG(CLK_MSI_RANGE);
-// 	__HAL_RCC_MSI_CALIBRATIONVALUE_ADJUST(RCC_MSICALIBRATION_DEFAULT);
-// #endif
+// Configure the speed range of the MSI.
+fn msi_set_speed(comptime target_speed: comptime_int) void {
+    _ = target_speed;
+    @compileError("The MSI speed range has not been implemented yet.");
+}
 
-// #ifdef CLK_USE_PLL
-// 	// PLL must be disables for configuration.
-// 	__HAL_RCC_PLL_DISABLE();
-// 	while(__HAL_RCC_GET_FLAG(RCC_FLAG_PLLRDY) != 0U);
-// 	__CLK_PLL_CONFIG(CLK_PLL_SRC, CLK_PLL_MUL_CFG, CLK_PLL_DIV_CFG);
-// 	__HAL_RCC_PLL_ENABLE();
-// #if defined(STM32G0) || defined(STM32WL)
-// 	__HAL_RCC_PLLCLKOUT_ENABLE(RCC_PLL_SYSCLK);
-// #endif
-// 	while(__HAL_RCC_GET_FLAG(RCC_FLAG_PLLRDY) == 0U);
-// #endif
+/// Enable the High Speed External oscillator (HSE).
+fn hse_enable(comptime enable: u1) void {
+    RCC.CR.modify(.{ .HSEON = enable });
+    if (enable == 1) {
+        // Do not wait for disable.
+        while (RCC.CR.read().HSERDY == 0) {}
+    }
+}
 
-// 	/*
-// 	 * CONFIGURE CLOCKS
-// 	 * Select the sources and dividers for internal clocks
-// 	 */
+/// Enable the Phased Locked Loop (PLL).
+fn pll_enable(comptime enable: u1) void {
+    RCC.CR.modify(.{ .PLLON = enable });
+    // Always wait for PLL to enable/disable.
+    // It must be disabled prior to configuration.
+    while (RCC.CR.read().PLLRDY != enable) {}
+}
 
-// 	// Configure AHBCLK divider
-// 	MODIFY_REG(RCC->CFGR, RCC_CFGR_HPRE, RCC_SYSCLK_DIV1);
+// Configures the PLL with the selected settings.
+fn pll_configure(comptime src: ClockSource, comptime input_hz: comptime_int, comptime target_hz: comptime_int) void {
+    pll_enable(0);
 
-// 	// Apply SYSCLK source
-// 	__HAL_RCC_SYSCLK_CONFIG(CLK_SYSCLK_SRC);
-// #if ( defined(RCC_SYSCLKSOURCE_MSI) && CLK_SYSCLK_SRC == RCC_SYSCLKSOURCE_MSI)
-// 	while (__HAL_RCC_GET_SYSCLK_SOURCE() != RCC_SYSCLKSOURCE_STATUS_MSI);
-// #elif (CLK_SYSCLK_SRC == RCC_SYSCLKSOURCE_HSI)
-// 	while (__HAL_RCC_GET_SYSCLK_SOURCE() != RCC_SYSCLKSOURCE_STATUS_HSI);
-// #elif (CLK_SYSCLK_SRC == RCC_SYSCLKSOURCE_HSE)
-// 	while (__HAL_RCC_GET_SYSCLK_SOURCE() != RCC_SYSCLKSOURCE_STATUS_HSE);
-// #elif (CLK_SYSCLK_SRC == RCC_SYSCLKSOURCE_PLLCLK)
-// 	while (__HAL_RCC_GET_SYSCLK_SOURCE() != RCC_SYSCLKSOURCE_STATUS_PLLCLK);
-// #endif
+    comptime var pll_src: comptime_int = undefined;
+    comptime var pll_mul: comptime_int = undefined;
+    comptime var pll_div: comptime_int = undefined;
 
-// 	// Configure PCLK dividers (peripheral clock)
+    comptime {
+        pll_src = switch (src) {
+            .hsi => 0,
+            .hse => 1,
+            else => @compileError("Invalid PLL input."),
+        };
 
-// #if defined(STM32L0) || defined(STM32WL) || defined(STM32G0)
-// 	// STM32L0's have a second PCLK. The shift by 3 is defined like this in the HAL.
-// 	MODIFY_REG(RCC->CFGR, RCC_CFGR_PPRE1, RCC_HCLK_DIV1);
-// 	MODIFY_REG(RCC->CFGR, RCC_CFGR_PPRE2, RCC_HCLK_DIV1 << 3);
-// #elif defined(STM32F0)
-// 	MODIFY_REG(RCC->CFGR, RCC_CFGR_PPRE, RCC_HCLK_DIV1);
-// #endif
+        // Find a mul/div solution that works.
+        // Very caveman solution - but no reason to be any more complex.
+        pll_selection: for (PLL_MUL_FACTORS, 0..) |multiplier, m| {
+            for (PLL_DIV_FACTORS, 0..) |divisor, d| {
+                if (divisor > 0 and input_hz * multiplier / divisor == target_hz) {
+                    pll_mul = m;
+                    pll_div = d;
+                    break :pll_selection;
+                }
+            }
+        } else {
+            @compileError("PLL solution could not be found.");
+        }
+    }
 
-// 	/*
-// 	 * DISABLE OSCILLATORS
-// 	 * Unused oscillators should be turned off.
-// 	 * Note they are disabled AFTER sysclk source is redirected
-// 	 */
+    RCC.CFGR.modify(.{
+        .PLLSRC = pll_src,
+        .PLLMUL = pll_mul,
+        .PLLDIV = pll_div,
+    });
 
-// #ifndef CLK_USE_HSI
-// 	__HAL_RCC_HSI_DISABLE();
-// #endif
-// #if (defined(RCC_SYSCLKSOURCE_MSI) && !defined(CLK_USE_MSI))
-// 	__HAL_RCC_MSI_DISABLE();
-// #endif
-// }
+    pll_enable(1);
+}
+
+/// Selects the clock source for the system clock (SYSCLK).
+/// This directly sets the CPU frequency.
+fn sysclk_set_src(comptime src: ClockSource) void {
+    RCC.CFGR.modify(.{ .SW = @intFromEnum(src) });
+    while (RCC.CFGR.read().SWS != @intFromEnum(src)) {}
+}
+
+// Configure the HCLk and peripheral bus dividers.
+// These are for nerds anyway.
+fn configure_bus_clocks() void {
+    RCC.CFGR.modify(.{
+        .HPRE = 0, // HCLK divider (to the CPU)
+        .PPRE1 = 0, // APB1 divider (Peripheral bus 1)
+        .PPRE2 = 0, // APB1 divider (Peripheral bus 2)
+    });
+}
