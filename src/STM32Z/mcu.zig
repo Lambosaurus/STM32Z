@@ -35,7 +35,7 @@ pub const MCU = struct {
         const time_ms_min = time_ms + (1000 / mcu.systick_hz);
         const start_time = mcu.get_tick();
         while (mcu.get_tick() - start_time < time_ms_min) {
-            cmsis.nop();
+            cmsis.wfi();
         }
     }
 };

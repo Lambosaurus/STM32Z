@@ -1,5 +1,7 @@
 const std = @import("std");
 const Builder = std.build.Builder;
+const LazyPath = std.build.LazyPath;
+const Step = std.build.Step;
 
 pub fn build(b: *Builder) void {
     const optimization = std.builtin.OptimizeMode.ReleaseSmall;
@@ -30,7 +32,12 @@ pub fn build(b: *Builder) void {
     });
     bin.step.dependOn(&elf.step);
 
-    // Copy the bin to the output directory
+    // Step for printing out file info.
+    var my_step = try StatStep.create(b, bin.getOutput());
+    my_step.step.dependOn(&bin.step);
+    b.default_step.dependOn(&my_step.step);
+
+    // Copy the bin to the output directory.
     const copy_bin = b.addInstallBinFile(bin.getOutput(), "output.bin");
     b.default_step.dependOn(&copy_bin.step);
 
@@ -55,3 +62,36 @@ pub fn get_flash_command() []const []const u8 {
         "shutdown",
     };
 }
+
+pub const StatStep = struct {
+    step: Step,
+    b: *Builder,
+    path: LazyPath,
+
+    pub fn create(b: *Builder, path: LazyPath) !*StatStep {
+        const self = b.allocator.create(StatStep) catch unreachable;
+        self.* = .{
+            .step = std.build.Step.init(.{
+                .id = .custom,
+                .name = "name",
+                .owner = b,
+                .makeFn = &make,
+            }),
+            .b = b,
+            .path = path,
+        };
+        return self;
+    }
+
+    fn make(step: *Step, prog_node: *std.Progress.Node) anyerror!void {
+        _ = prog_node;
+        const self = @fieldParentPtr(StatStep, "step", step);
+        const path = self.path.getPath(self.step.owner);
+
+        var file = try std.fs.openFileAbsolute(path, .{ .mode = .read_only });
+        const size = try file.getEndPos();
+        file.close();
+
+        std.debug.print("Binary size: {d} bytes\n", .{size});
+    }
+};
