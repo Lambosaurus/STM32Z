@@ -23,6 +23,8 @@ pub fn reset() void {
     }
 }
 
+/// Initialises the Cortex M0's system tick.
+/// The period is specified in hclk ticks - and so the output frequency is hclk / ticks.
 pub fn systick_config(comptime ticks: comptime_int) void {
     STK.RVR.write(.{ .RELOAD = ticks - 1 });
     STK.CVR.write(.{ .CURRENT = 0 });
@@ -31,4 +33,16 @@ pub fn systick_config(comptime ticks: comptime_int) void {
         .TICKINT = 1,
         .CLKSOURCE = 1,
     });
+}
+
+/// Enables/disables the system tick interrupt.
+pub fn systick_enable(comptime enable: u1) void {
+    STK.CSR.write(.{ .ENABLE = enable });
+}
+
+/// A replacement for lhs << rhs.
+/// This is just to hide a bunch of junk casts.
+/// This isnt really a part of cmsis...
+pub inline fn lshift(comptime T: type, lhs: T, rhs: T) T {
+    return lhs << @truncate(rhs);
 }

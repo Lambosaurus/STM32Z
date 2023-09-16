@@ -1,5 +1,6 @@
 const std = @import("std");
 const device = @import("device.zig").device;
+const cmsis = @import("cmsis.zig");
 
 const Mode = enum(u2) {
     input = 0,
@@ -50,7 +51,7 @@ pub const GPIO = packed struct(u32) {
     /// Allows the joining of multiple GPIO for batching GPIO operations.
     /// This is useful for GPIO, where multiple IO need to be set at once.
     /// PA0, PA1 may be merged into a single IO for the purposes of UART initialisation, ect.
-    pub fn join(comptime gpio_list: []GPIO) GPIO {
+    pub fn join(comptime gpio_list: []const GPIO) GPIO {
         const port = gpio_list[0].port;
         var pins: u16 = 0;
 
@@ -108,12 +109,12 @@ pub const GPIO = packed struct(u32) {
     /// Initialises the pin into an alternate funciton mode.
     /// This is used by peripherals to take control of pins.
     pub fn init_alternate(gpio: GPIO, output_type: OutputType, af: u4) void {
+        gpio.set_alternate_function(af);
         gpio.init(.{
             .mode = .alternate,
             .speed = .fastest,
             .output_type = output_type,
         });
-        gpio.set_alternate_function(af);
     }
 
     /// Returns the pin to its high-z analog mode.
@@ -144,17 +145,19 @@ pub const GPIO = packed struct(u32) {
     /// Configures the given pin(s) to the specified alternate function.
     inline fn set_alternate_function(gpio: GPIO, af: u4) void {
         const port = get_port(gpio.port);
-        var pins = gpio.pin;
+        var pins: u32 = gpio.pin;
         // Check each pin.
         for (0..16) |i| {
-            if (pins & 1) {
+            if (pins & 1 > 0) {
 
                 // The pin modes are split across AFRL and AFRH in 4 bit blocks.
                 const alt_offset = (i & 0x7) * 4;
-                if (i > 0x7) {
-                    port.AFRL.modify_word(0xF << alt_offset, af << alt_offset);
+                const alt_mask = cmsis.lshift(u32, 0x0F, alt_offset);
+                const alt_af = cmsis.lshift(u32, af, alt_offset);
+                if (i <= 0x7) {
+                    port.AFRL.modify_word(alt_mask, alt_af);
                 } else {
-                    port.AFRH.modify_word(0xF << alt_offset, af << alt_offset);
+                    port.AFRH.modify_word(alt_mask, alt_af);
                 }
             }
             pins >>= 1;

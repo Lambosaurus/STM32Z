@@ -77,6 +77,10 @@ pub const Clock = struct {
     pub fn get_sysclk_hz(comptime clk: Clock) comptime_int {
         return clk.sysclk_hz;
     }
+
+    pub fn get_pclk_hz(comptime clk: Clock) comptime_int {
+        return clk.sysclk_hz;
+    }
 };
 
 fn flash_set_latency(comptime sysclk_hz: comptime_int) void {
