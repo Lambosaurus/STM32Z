@@ -31,9 +31,10 @@ pub const MCU = struct {
     }
 
     pub fn delay(comptime mcu: MCU, time_ms: u32) void {
-        time_ms += 1000 / mcu.systick_hz;
-        var start_time = mcu.get_tick();
-        while (mcu.get_tick() - start_time < time_ms) {
+        // We might be near a tick rollover, so we add a minimum delay.
+        const time_ms_min = time_ms + (1000 / mcu.systick_hz);
+        const start_time = mcu.get_tick();
+        while (mcu.get_tick() - start_time < time_ms_min) {
             cmsis.nop();
         }
     }
