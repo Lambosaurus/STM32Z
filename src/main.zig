@@ -16,7 +16,7 @@ const uart = UART{
     .mcu = mcu,
     .baud = 115200,
     .instance = device.USART1,
-    .pins = GPIO.join(&[_]GPIO{ GPIO.new("PA9"), GPIO.new("PA10") }),
+    .pins = GPIO.new("PA9|PA10"),
 };
 
 const tx_pin = GPIO.new("PA9");

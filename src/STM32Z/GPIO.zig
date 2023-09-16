@@ -42,31 +42,26 @@ pub const GPIO = packed struct(u32) {
     port: u16,
 
     pub fn new(comptime pin_name: []const u8) GPIO {
-        return .{
-            .pin = 1 << parse_pin_number(pin_name),
-            .port = parse_pin_port(pin_name),
-        };
-    }
+        comptime var pins: u16 = 0;
+        comptime var port: ?u16 = null;
 
-    /// Allows the joining of multiple GPIO for batching GPIO operations.
-    /// This is useful for GPIO, where multiple IO need to be set at once.
-    /// PA0, PA1 may be merged into a single IO for the purposes of UART initialisation, ect.
-    pub fn join(comptime gpio_list: []const GPIO) GPIO {
-        const port = gpio_list[0].port;
-        var pins: u16 = 0;
+        comptime {
+            var tok = std.mem.tokenize(u8, pin_name, "|");
 
-        for (gpio_list) |gpio| {
-            comptime {
-                if (gpio.port != port) {
-                    @compileError("Joined GPIO must be on the same port.");
+            while (tok.next()) |word| {
+                pins |= cmsis.lshift(u16, 1, parse_pin_number(word));
+                const inst_port = parse_pin_port(word);
+                if (port == null) {
+                    port = inst_port;
+                } else if (port != inst_port) {
+                    @compileError("GPIO unions must have the same GPIO port");
                 }
             }
-            pins |= gpio.pin;
         }
 
         return .{
             .pin = pins,
-            .port = port,
+            .port = port.?,
         };
     }
 
@@ -220,6 +215,14 @@ fn parse_pin_port(comptime pin_name: []const u8) u16 {
 test "pin parsing" {
     try std.testing.expect(parse_pin_number("PB12") == 12);
     try std.testing.expect(parse_pin_port("PB12") == 1);
+
+    const pb12 = GPIO.new("PB12");
+    try std.testing.expect(pb12.pin == (1 << 12));
+    try std.testing.expect(pb12.port == 1);
+
+    const pair = GPIO.new("PA9|PA10");
+    try std.testing.expect(pair.pin == ((1 << 9) | (1 << 10)));
+    try std.testing.expect(pair.port == 0);
 }
 
 test "bit doubling" {
