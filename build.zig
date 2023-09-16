@@ -18,7 +18,7 @@ pub fn build(b: *Builder) void {
         .optimize = optimization,
         .single_threaded = true,
     });
-    elf.setLinkerScript(.{ .path = "src/STM32Z/MCU/STM32L052.ld" });
+    elf.setLinkerScript(.{ .path = "src/stm32z/devices/STM32L052.ld" });
 
     // Copy the elf to the output directory.
     const copy_elf = b.addInstallArtifact(elf, .{});

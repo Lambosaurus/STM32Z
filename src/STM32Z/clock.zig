@@ -1,7 +1,8 @@
 const std = @import("std");
-const mcu = @import("mcu.zig").mcu;
+const device = @import("device.zig").device;
+const cmsis = @import("cmsis.zig");
 
-const RCC = mcu.RCC;
+const RCC = device.RCC;
 
 const HSI_FREQ = 16_000_000;
 const MSI_FREQ_MIN = 65_536;
@@ -24,12 +25,14 @@ const ClockSource = enum(u2) {
 };
 
 /// Configures the clock tree.
-pub const CLK = struct {
+pub const Clock = struct {
     sysclk_hz: comptime_int = 32_000_000,
     clock_source: ClockSource = .hsi,
     hse_hz: ?comptime_int = null,
 
-    pub fn init(comptime clk: CLK) void {
+    /// Inititialises the system clocks.
+    /// No need to do this directly. Let the MCU object do this.
+    pub fn init(comptime clk: Clock) void {
         flash_set_latency(clk.sysclk_hz);
 
         comptime var input_hz: comptime_int = undefined;
@@ -71,14 +74,14 @@ pub const CLK = struct {
         }
     }
 
-    pub fn get_sysclk_hz(comptime clk: CLK) comptime_int {
+    pub fn get_sysclk_hz(comptime clk: Clock) comptime_int {
         return clk.sysclk_hz;
     }
 };
 
 fn flash_set_latency(comptime sysclk_hz: comptime_int) void {
     const state: u1 = if (sysclk_hz > 16_000_000) 1 else 0;
-    mcu.FLASH.ACR.modify(.{
+    device.FLASH.ACR.modify(.{
         .LATENCY = state,
     });
 }
@@ -88,7 +91,9 @@ fn hsi_enable(comptime enable: u1) void {
     RCC.CR.modify(.{ .HSI16ON = enable });
     if (enable == 1) {
         // Do not wait for disable.
-        while (RCC.CR.read().HSI16RDYF == 0) {}
+        while (RCC.CR.read().HSI16RDYF == 0) {
+            cmsis.nop();
+        }
     }
 }
 
@@ -97,7 +102,9 @@ fn msi_enable(comptime enable: u1) void {
     RCC.CR.modify(.{ .MSION = enable });
     if (enable == 1) {
         // Do not wait for disable.
-        while (RCC.CR.read().MSIRDY == 0) {}
+        while (RCC.CR.read().MSIRDY == 0) {
+            cmsis.nop();
+        }
     }
 }
 
@@ -112,7 +119,9 @@ fn hse_enable(comptime enable: u1) void {
     RCC.CR.modify(.{ .HSEON = enable });
     if (enable == 1) {
         // Do not wait for disable.
-        while (RCC.CR.read().HSERDY == 0) {}
+        while (RCC.CR.read().HSERDY == 0) {
+            cmsis.nop();
+        }
     }
 }
 
@@ -121,7 +130,9 @@ fn pll_enable(comptime enable: u1) void {
     RCC.CR.modify(.{ .PLLON = enable });
     // Always wait for PLL to enable/disable.
     // It must be disabled prior to configuration.
-    while (RCC.CR.read().PLLRDY != enable) {}
+    while (RCC.CR.read().PLLRDY != enable) {
+        cmsis.nop();
+    }
 }
 
 // Configures the PLL with the selected settings.
@@ -167,7 +178,9 @@ fn pll_configure(comptime src: ClockSource, comptime input_hz: comptime_int, com
 /// This directly sets the CPU frequency.
 fn sysclk_set_src(comptime src: ClockSource) void {
     RCC.CFGR.modify(.{ .SW = @intFromEnum(src) });
-    while (RCC.CFGR.read().SWS != @intFromEnum(src)) {}
+    while (RCC.CFGR.read().SWS != @intFromEnum(src)) {
+        cmsis.nop();
+    }
 }
 
 // Configure the HCLk and peripheral bus dividers.

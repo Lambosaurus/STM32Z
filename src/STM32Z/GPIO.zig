@@ -1,5 +1,5 @@
 const std = @import("std");
-const mcu = @import("mcu.zig").mcu;
+const device = @import("device.zig").device;
 
 const Mode = enum(u2) {
     input = 0,
@@ -179,9 +179,9 @@ fn bit_double(pins: u16) u32 {
 
 /// Returns the GPIO port based on the given port number.
 /// This works because GPIO ports have a spacing of 0x400.
-fn get_port(port: u16) *mcu.GPIO_Peripheral {
-    const gpio_base = comptime @intFromPtr(mcu.GPIOA);
-    const gpio_stride = comptime @intFromPtr(mcu.GPIOB) - gpio_base;
+fn get_port(port: u16) *device.GPIO_Peripheral {
+    const gpio_base = comptime @intFromPtr(device.GPIOA);
+    const gpio_stride = comptime @intFromPtr(device.GPIOB) - gpio_base;
     return @ptrFromInt(gpio_base + (gpio_stride * port));
 }
 

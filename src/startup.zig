@@ -29,8 +29,28 @@ export fn resetHandler() void {
     main.main();
 }
 
+export fn defaultHandler() void {
+    while (true) {}
+}
+
+extern fn systemTickHandler() void;
+
 // The ISR vector table.
 export const vector_table linksection(".vector") = [_](*const fn () callconv(.C) void){
     _estack, // Stack pointer
     resetHandler, // Reset handler (entry point)
+    defaultHandler, // NMI Handler
+    defaultHandler, // Hardfault Handler
+    defaultHandler, // Reserved 1
+    defaultHandler, // Reserved 2
+    defaultHandler, // Reserved 3
+    defaultHandler, // Reserved 4
+    defaultHandler, // Reserved 5
+    defaultHandler, // Reserved 6
+    defaultHandler, // Reserved 7
+    defaultHandler, // SVC Handler
+    defaultHandler, // Reserved 8
+    defaultHandler, // Reserved 9
+    defaultHandler, // Pend SV Handler
+    @import("stm32z/mcu.zig").systemTickHandler, // System Tick Handler
 };

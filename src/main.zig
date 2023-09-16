@@ -1,20 +1,17 @@
-const GPIO = @import("STM32Z/GPIO.zig").GPIO;
-const CORE = @import("STM32Z/CORE.zig").CORE;
+const MCU = @import("stm32z/mcu.zig").MCU;
+const GPIO = @import("stm32z/gpio.zig").GPIO;
 
-const core = CORE.new(
-    .{
-        .sysclk_hz = 32_000_000,
-    },
-);
+const mcu = MCU.new(.{
+    .sysclk_hz = 32_000_000,
+    .clock_source = .hsi,
+});
 
 const led_red = GPIO.new("PB3");
 const led_grn = GPIO.new("PB4");
 const led_blu = GPIO.new("PB5");
 
 pub fn main() void {
-    core.init();
-
+    mcu.init();
     led_red.init_output(0);
-
     while (true) {}
 }
