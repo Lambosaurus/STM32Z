@@ -1,7 +1,4 @@
-const device = @import("device.zig").device;
-
-const STK = device.STK;
-const SCB = device.SCB;
+const regs = @import("device.zig").regs;
 
 pub inline fn nop() void {
     asm volatile ("nop;");
@@ -13,7 +10,7 @@ pub inline fn wfi() void {
 
 pub fn reset() void {
     asm volatile ("dsb;");
-    SCB.AIRCR.modify(.{
+    regs.SCB.AIRCR.modify(.{
         .SYSRESETREQ = 1,
         .VECTKEYSTAT = 0x5FA,
     });
@@ -26,9 +23,9 @@ pub fn reset() void {
 /// Initialises the Cortex M0's system tick.
 /// The period is specified in hclk ticks - and so the output frequency is hclk / ticks.
 pub fn systick_config(comptime ticks: comptime_int) void {
-    STK.RVR.write(.{ .RELOAD = ticks - 1 });
-    STK.CVR.write(.{ .CURRENT = 0 });
-    STK.CSR.write(.{
+    regs.STK.RVR.write(.{ .RELOAD = ticks - 1 });
+    regs.STK.CVR.write(.{ .CURRENT = 0 });
+    regs.STK.CSR.write(.{
         .ENABLE = 1,
         .TICKINT = 1,
         .CLKSOURCE = 1,
@@ -37,7 +34,7 @@ pub fn systick_config(comptime ticks: comptime_int) void {
 
 /// Enables/disables the system tick interrupt.
 pub fn systick_enable(comptime enable: u1) void {
-    STK.CSR.write(.{ .ENABLE = enable });
+    regs.STK.CSR.write(.{ .ENABLE = enable });
 }
 
 /// A replacement for lhs << rhs.

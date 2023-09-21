@@ -1,8 +1,12 @@
 const std = @import("std");
-const device = @import("device.zig").device;
 const cmsis = @import("cmsis.zig");
+const device = @import("device.zig");
+const regs = device.regs;
 
-const RCC = device.RCC;
+/// Global clock configuration object
+const config: ClockConfig = device.config.clock;
+
+const RCC = regs.RCC;
 
 const HSI_FREQ = 16_000_000;
 const MSI_FREQ_MIN = 65_536;
@@ -24,68 +28,68 @@ const ClockSource = enum(u2) {
     pll = 3,
 };
 
-/// Configures the clock tree.
-pub const Clock = struct {
+/// Configuration object. This should be available
+pub const ClockConfig = struct {
     sysclk_hz: comptime_int = 32_000_000,
     clock_source: ClockSource = .hsi,
     hse_hz: ?comptime_int = null,
-
-    /// Inititialises the system clocks.
-    /// No need to do this directly. Let the MCU object do this.
-    pub fn init(comptime clk: Clock) void {
-        flash_set_latency(clk.sysclk_hz);
-
-        comptime var input_hz: comptime_int = undefined;
-
-        switch (clk.clock_source) {
-            .msi => {
-                msi_enable(1);
-                msi_set_speed(clk.sysclk_hz);
-                input_hz = clk.sysclk_hz;
-            },
-            .hsi => {
-                hsi_enable(1);
-                input_hz = HSI_FREQ;
-            },
-            .hse => {
-                hse_enable(1);
-                if (clk.hse_hz == null) {
-                    @compileError("Please specify the HSE frequency.");
-                }
-                input_hz = clk.hse_hz.?;
-            },
-            .pll => @compileError("Please select the root clock. The PLL will be enabled if needed."),
-        }
-
-        if (input_hz == clk.sysclk_hz) {
-            // PLL not needed. Run directly from input source
-            sysclk_set_src(clk.clock_source);
-        } else {
-            // PLL is needed. Do the thing.
-            pll_configure(clk.clock_source, input_hz, clk.sysclk_hz);
-            sysclk_set_src(.pll);
-        }
-
-        configure_bus_clocks();
-
-        if (clk.clock_source != .msi) {
-            // The MSI is the default clock source. It is no longer needed.
-            msi_enable(0);
-        }
-    }
-
-    pub fn get_sysclk_hz(comptime clk: Clock) comptime_int {
-        return clk.sysclk_hz;
-    }
-
-    pub fn get_pclk_hz(comptime clk: Clock) comptime_int {
-        return clk.sysclk_hz;
-    }
 };
+
+/// Inititialises the system clocks.
+/// No need to do this directly. Let the MCU object do this.
+pub fn init() void {
+    flash_set_latency(config.sysclk_hz);
+
+    comptime var input_hz: comptime_int = undefined;
+
+    switch (config.clock_source) {
+        .msi => {
+            msi_enable(1);
+            msi_set_speed(config.sysclk_hz);
+            input_hz = config.sysclk_hz;
+        },
+        .hsi => {
+            hsi_enable(1);
+            input_hz = HSI_FREQ;
+        },
+        .hse => {
+            hse_enable(1);
+            if (config.hse_hz == null) {
+                @compileError("Please specify the HSE frequency.");
+            }
+            input_hz = config.hse_hz.?;
+        },
+        .pll => @compileError("Please select the root clock. The PLL will be enabled if needed."),
+    }
+
+    if (input_hz == config.sysclk_hz) {
+        // PLL not needed. Run directly from input source
+        sysclk_set_src(config.clock_source);
+    } else {
+        // PLL is needed. Do the thing.
+        pll_configure(config.clock_source, input_hz, config.sysclk_hz);
+        sysclk_set_src(.pll);
+    }
+
+    configure_bus_clocks();
+
+    if (config.clock_source != .msi) {
+        // The MSI is the default clock source. It is no longer needed.
+        msi_enable(0);
+    }
+}
+
+pub fn get_sysclk_hz() comptime_int {
+    return config.sysclk_hz;
+}
+
+pub fn get_pclk_hz() comptime_int {
+    return config.sysclk_hz;
+}
 
 fn flash_set_latency(comptime sysclk_hz: comptime_int) void {
     const state: u1 = if (sysclk_hz > 16_000_000) 1 else 0;
-    device.FLASH.ACR.modify(.{
+    regs.FLASH.ACR.modify(.{
         .LATENCY = state,
     });
 }

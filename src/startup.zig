@@ -1,4 +1,4 @@
-const main = @import("main.zig");
+pub const main = @import("main.zig");
 
 // These symbols come from the linker script
 extern const _data_loadaddr: u32;
