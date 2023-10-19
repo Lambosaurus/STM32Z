@@ -219,7 +219,7 @@ fn parse_pin_port(comptime pin_name: []const u8) u16 {
 
 /// Finds the alternate function id for the given pin and function.
 /// This works on GPIO Pin groups, and will confirm that they use the same AF value.
-fn lookup_af(comptime gpio: Pin, comptime func: regs.GPIO_Function) u4 {
+pub fn lookup_af(comptime gpio: Pin, comptime func: regs.GPIO_Function) u4 {
     return comptime find_af: {
         var af: ?u4 = null;
         for (0..16) |i| {

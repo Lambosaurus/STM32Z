@@ -3,6 +3,8 @@ const gpio = @import("gpio.zig");
 const cmsis = @import("cmsis.zig");
 const clock = @import("clock.zig");
 
+const device_config = @import("device.zig").config;
+
 const Instance = regs.USART_Peripheral;
 const RCC = regs.RCC;
 
@@ -19,7 +21,6 @@ pub const BitOrder = enum {
 
 pub const Config = struct {
     baud: comptime_int,
-    pins: gpio.Pin,
     data_bits: comptime_int = 8,
     parity: Parity = .none,
     invert: bool = false,
@@ -27,16 +28,20 @@ pub const Config = struct {
     order: BitOrder = .lsb_first,
 };
 
-pub fn new(instance: *volatile Instance) UART {
-    return .{ .instance = instance };
+pub fn new(instance: *volatile Instance, comptime pins: gpio.Pin) UART {
+    return .{
+        .instance = instance,
+        .pins = pins,
+        .af = gpio.lookup_af(pins, .usart1),
+    };
 }
 
 pub const UART = struct {
     instance: *volatile Instance,
-    pins: gpio.Pin = undefined,
+    pins: gpio.Pin,
+    af: u4,
 
     pub fn init(uart: *UART, comptime config: Config) void {
-        uart.pins = config.pins;
         uart.clock_enable(1);
 
         // The data bit configuration includes the parity bit.
@@ -79,7 +84,7 @@ pub const UART = struct {
         // Because its 16 bit sampling mode - we ignore the 4 bit mantissa.
         uart.instance.BRR.write_word((pclk + (baud / 2)) / baud);
 
-        config.pins.init_alternate(.push_pull, .usart1);
+        uart.pins.init_alternate_af(.push_pull, uart.af);
 
         uart.instance.CR1.modify(.{ .UE = 1 });
     }
@@ -100,6 +105,10 @@ pub const UART = struct {
         }
     }
 
+    pub fn handleIrq(uart: *UART) void {
+        _ = uart;
+    }
+
     /// Enables the specified UART clock
     fn clock_enable(uart: *UART, enable: u1) void {
         switch (uart.instance) {
@@ -113,3 +122,15 @@ pub const UART = struct {
         }
     }
 };
+
+pub export fn uart1Handler() void {
+    if (@hasField(@TypeOf(device_config), "uart1")) {
+        device_config.uart1.handleIrq();
+    }
+}
+
+pub export fn uart2Handler() void {
+    if (@hasField(@TypeOf(device_config), "uart2")) {
+        device_config.uart2.handleIrq();
+    }
+}

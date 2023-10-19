@@ -52,5 +52,35 @@ export const vector_table linksection(".vector") = [_](*const fn () callconv(.C)
     defaultHandler, // Reserved 8
     defaultHandler, // Reserved 9
     defaultHandler, // Pend SV Handler
-    @import("stm32z/mcu.zig").systemTickHandler, // System Tick Handler
+    @import("stm32z/mcu.zig").systemTickHandler, // System Tick
+    defaultHandler, // WWDG
+    defaultHandler, // PVD
+    defaultHandler, // RTC
+    defaultHandler, // FLASH
+    defaultHandler, // RCC / CRS
+    defaultHandler, // EXTI 0:1
+    defaultHandler, // EXTI 2:3
+    defaultHandler, // EXTI 14:15
+    defaultHandler, // Reserved 10
+    defaultHandler, // DMA1 CH 1
+    defaultHandler, // DMA1 CH 2:3
+    defaultHandler, // DMA1 CH 4:7
+    defaultHandler, // ADC / COMP
+    defaultHandler, // LPTIM1
+    defaultHandler, // UART4 / UART5
+    defaultHandler, // TIM2
+    defaultHandler, // TIM3
+    defaultHandler, // TIM6
+    defaultHandler, // TIM7
+    defaultHandler, // Reserved 11
+    defaultHandler, // TIM21
+    defaultHandler, // I2C3
+    defaultHandler, // TIM22
+    defaultHandler, // I2C1
+    defaultHandler, // I2C2
+    defaultHandler, // SPI1
+    defaultHandler, // SPI2
+    @import("stm32z/uart.zig").uart1Handler, // UART1
+    defaultHandler, // UART2
+    defaultHandler, // LPUART1 / AES
 };
